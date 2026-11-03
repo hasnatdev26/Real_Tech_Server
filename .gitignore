@@ -1,0 +1,10 @@
+.env
+.env.local
+.mail.local
+
+node_modules
+dist
+dist-ssr
+uploads
+logs
+*.log
