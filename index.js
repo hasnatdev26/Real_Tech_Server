@@ -12,6 +12,7 @@ const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
 const cloudinary = require("cloudinary").v2;
+const sharp = require("sharp");
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -44,6 +45,42 @@ const uploadToCloudinary = async (filePath, folder = "kolystore") => {
     const fileName = path.basename(filePath);
     return `/uploads/${fileName}`;
   }
+};
+
+const BANNER_TARGET_BYTES = 100 * 1024;
+
+const compressBannerImage = async (filePath, maxWidth) => {
+  let quality = 82;
+  let width = maxWidth;
+  let buffer = null;
+
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    buffer = await sharp(filePath)
+      .rotate()
+      .flatten({ background: "#ffffff" })
+      .resize({ width, withoutEnlargement: true })
+      .jpeg({ quality, mozjpeg: true })
+      .toBuffer();
+
+    if (buffer.length <= BANNER_TARGET_BYTES) break;
+
+    if (quality > 54) {
+      quality -= 8;
+    } else {
+      width = Math.max(960, Math.round(width * 0.85));
+    }
+  }
+
+  const compressedPath = path.join(
+    path.dirname(filePath),
+    `${path.parse(filePath).name}-opt.jpg`
+  );
+
+  await fs.promises.writeFile(compressedPath, buffer);
+
+  await fs.promises.unlink(filePath).catch(() => {});
+
+  return compressedPath;
 };
 
 const {
@@ -567,6 +604,12 @@ async function run() {
     const productQuestionsCollection =
       db.collection("productQuestions");
 
+    const reviewsCollection =
+      db.collection("reviews");
+
+    const bannersCollection =
+      db.collection("banners");
+
     const storeSettingsCollection =
       db.collection("storeSettings");
 
@@ -842,6 +885,16 @@ Received at: ${new Date().toLocaleString("en-US", { timeZone: "Asia/Dhaka", hour
 
     await ordersCollection.createIndex({ orderId: 1 }, { unique: true });
     await ordersCollection.createIndex({ userId: 1, createdAt: -1 });
+
+    await reviewsCollection.createIndex(
+      { productId: 1, userId: 1 },
+      { unique: true }
+    );
+
+    await reviewsCollection.createIndex({ productId: 1, createdAt: -1 });
+
+    await bannersCollection.createIndex({ type: 1, order: 1 });
+    await bannersCollection.createIndex({ type: 1, categoryKey: 1 });
 
     // =====================================================
     // SIGNUP API
@@ -2669,14 +2722,319 @@ app.delete(
   }
 );
 
+// =====================================================
+// ADMIN REVIEWS
+// =====================================================
 
+app.get("/admin/reviews", verifyToken, verifyAdmin, async (req, res) => {
+  try {
+    const reviews = await reviewsCollection
+      .find({})
+      .sort({ createdAt: -1 })
+      .toArray();
 
+    return res.status(200).send({
+      success: true,
+      count: reviews.length,
+      reviews,
+    });
+  } catch (error) {
+    console.error("Get Admin Reviews Error:", error);
 
+    return res.status(500).send({
+      success: false,
+      message: "Failed to get reviews",
+    });
+  }
+});
 
+app.patch(
+  "/admin/reviews/:id/visibility",
+  verifyToken,
+  verifyAdmin,
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { hidden } = req.body || {};
 
+      if (!ObjectId.isValid(id)) {
+        return res.status(400).send({
+          success: false,
+          message: "Invalid review ID",
+        });
+      }
 
+      if (typeof hidden !== "boolean") {
+        return res.status(400).send({
+          success: false,
+          message: "hidden must be true or false",
+        });
+      }
 
+      const result = await reviewsCollection.findOneAndUpdate(
+        { _id: new ObjectId(id) },
+        {
+          $set: {
+            hidden,
+            updatedAt: new Date(),
+          },
+        },
+        { returnDocument: "after" }
+      );
 
+      const review = result?.value ?? result;
+
+      if (!review) {
+        return res.status(404).send({
+          success: false,
+          message: "Review not found",
+        });
+      }
+
+      return res.status(200).send({
+        success: true,
+        message: hidden
+          ? "Review hidden from product page"
+          : "Review is now visible",
+        review,
+      });
+    } catch (error) {
+      console.error("Update Review Visibility Error:", error);
+
+      return res.status(500).send({
+        success: false,
+        message: "Failed to update review visibility",
+      });
+    }
+  }
+);
+
+app.delete(
+  "/admin/reviews/:id",
+  verifyToken,
+  verifyAdmin,
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      if (!ObjectId.isValid(id)) {
+        return res.status(400).send({
+          success: false,
+          message: "Invalid review ID",
+        });
+      }
+
+      const result = await reviewsCollection.deleteOne({
+        _id: new ObjectId(id),
+      });
+
+      if (result.deletedCount === 0) {
+        return res.status(404).send({
+          success: false,
+          message: "Review not found",
+        });
+      }
+
+      return res.status(200).send({
+        success: true,
+        message: "Review deleted successfully",
+        reviewId: id,
+      });
+    } catch (error) {
+      console.error("Delete Review Error:", error);
+
+      return res.status(500).send({
+        success: false,
+        message: "Failed to delete review",
+      });
+    }
+  }
+);
+
+// =====================================================
+// ADMIN BANNERS
+// =====================================================
+
+app.get("/admin/banners", verifyToken, verifyAdmin, async (req, res) => {
+  try {
+    const banners = await bannersCollection
+      .find({})
+      .sort({ order: 1, createdAt: 1 })
+      .toArray();
+
+    return res.status(200).send({
+      success: true,
+      count: banners.length,
+      hero: banners.filter((banner) => banner.type === "hero"),
+      categories: banners.filter(
+        (banner) => banner.type === "category"
+      ),
+    });
+  } catch (error) {
+    console.error("Get Admin Banners Error:", error);
+
+    return res.status(500).send({
+      success: false,
+      message: "Failed to get banners",
+    });
+  }
+});
+
+app.post(
+  "/admin/banners",
+  verifyToken,
+  verifyAdmin,
+  upload.single("image"),
+  async (req, res) => {
+    try {
+      const type = String(req.body?.type || "").trim();
+
+      if (!["hero", "category"].includes(type)) {
+        return res.status(400).send({
+          success: false,
+          message: "Banner type must be hero or category",
+        });
+      }
+
+      if (!req.file) {
+        return res.status(400).send({
+          success: false,
+          message: "Banner image is required",
+        });
+      }
+
+      const category =
+        type === "category"
+          ? String(req.body?.category || "").trim()
+          : "";
+
+      if (type === "category" && !category) {
+        return res.status(400).send({
+          success: false,
+          message: "Category is required for a category banner",
+        });
+      }
+
+      const categoryKey = category.toLowerCase();
+
+      const compressedPath = await compressBannerImage(
+        req.file.path,
+        type === "hero" ? 1920 : 1600
+      );
+
+      const image = await uploadToCloudinary(
+        compressedPath,
+        "kolystore/banners"
+      );
+
+      const now = new Date();
+
+      if (type === "category") {
+        const existing = await bannersCollection.findOne({
+          type: "category",
+          categoryKey,
+        });
+
+        const result = await bannersCollection.findOneAndUpdate(
+          { type: "category", categoryKey },
+          {
+            $set: {
+              type,
+              category,
+              categoryKey,
+              image,
+              updatedAt: now,
+            },
+            $setOnInsert: { createdAt: now },
+          },
+          { upsert: true, returnDocument: "after" }
+        );
+
+        return res.status(200).send({
+          success: true,
+          message: existing
+            ? "Category banner updated"
+            : "Category banner added",
+          banner: result?.value ?? result,
+        });
+      }
+
+      const order = await bannersCollection.countDocuments({
+        type: "hero",
+      });
+
+      const banner = {
+        type: "hero",
+        category: "",
+        categoryKey: "",
+        image,
+        order,
+        createdAt: now,
+        updatedAt: now,
+      };
+
+      const result = await bannersCollection.insertOne(banner);
+
+      return res.status(201).send({
+        success: true,
+        message: "Hero banner added",
+        banner: {
+          ...banner,
+          _id: result.insertedId,
+        },
+      });
+    } catch (error) {
+      console.error("Add Banner Error:", error);
+
+      return res.status(500).send({
+        success: false,
+        message: "Failed to upload banner",
+      });
+    }
+  }
+);
+
+app.delete(
+  "/admin/banners/:id",
+  verifyToken,
+  verifyAdmin,
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      if (!ObjectId.isValid(id)) {
+        return res.status(400).send({
+          success: false,
+          message: "Invalid banner ID",
+        });
+      }
+
+      const result = await bannersCollection.deleteOne({
+        _id: new ObjectId(id),
+      });
+
+      if (result.deletedCount === 0) {
+        return res.status(404).send({
+          success: false,
+          message: "Banner not found",
+        });
+      }
+
+      return res.status(200).send({
+        success: true,
+        message: "Banner deleted successfully",
+        bannerId: id,
+      });
+    } catch (error) {
+      console.error("Delete Banner Error:", error);
+
+      return res.status(500).send({
+        success: false,
+        message: "Failed to delete banner",
+      });
+    }
+  }
+);
 
     // =====================================================
     // STORE DELIVERY CHARGE
@@ -3234,6 +3592,34 @@ app.get("/categories", async (req, res) => {
     }
 });
 
+// =====================================================
+// GET HOME BANNERS API
+// =====================================================
+
+app.get("/banners", async (req, res) => {
+  try {
+    const banners = await bannersCollection
+      .find({})
+      .sort({ order: 1, createdAt: 1 })
+      .toArray();
+
+    return res.status(200).send({
+      success: true,
+      hero: banners.filter((banner) => banner.type === "hero"),
+      categories: banners.filter(
+        (banner) => banner.type === "category"
+      ),
+    });
+  } catch (error) {
+    console.error("Get Banners Error:", error);
+
+    return res.status(500).send({
+      success: false,
+      message: "Failed to get banners",
+    });
+  }
+});
+
 app.get("/products", async (req, res) => {
   try {
     const isSummaryRequest = req.query.summary === "1";
@@ -3398,7 +3784,234 @@ app.get("/products", async (req, res) => {
       }
     );
 
-  
+    // =====================================================
+    // PRODUCT REVIEWS
+    // =====================================================
+
+    const findProductByParam = async (id) => {
+      if (!id) return null;
+
+      if (ObjectId.isValid(id)) {
+        const byObjectId = await productsCollection.findOne({
+          _id: new ObjectId(id),
+        });
+
+        if (byObjectId) return byObjectId;
+      }
+
+      return productsCollection.findOne({ productId: id });
+    };
+
+    app.get("/products/:id/reviews", async (req, res) => {
+      try {
+        const product = await findProductByParam(req.params.id);
+
+        if (!product) {
+          return res.status(404).send({
+            success: false,
+            message: "Product not found",
+          });
+        }
+
+        const reviews = await reviewsCollection
+          .find({
+            productId: product._id.toString(),
+            hidden: { $ne: true },
+          })
+          .sort({ createdAt: -1 })
+          .toArray();
+
+        const ratingCounts = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+        let ratingSum = 0;
+
+        reviews.forEach((review) => {
+          const value = Number(review.rating);
+
+          if (Number.isInteger(value) && value >= 1 && value <= 5) {
+            ratingCounts[value] += 1;
+            ratingSum += value;
+          }
+        });
+
+        const count = reviews.length;
+        const averageRating =
+          count > 0 ? Number((ratingSum / count).toFixed(1)) : 0;
+
+        return res.send({
+          success: true,
+          count,
+          averageRating,
+          ratingCounts,
+          reviews,
+        });
+      } catch (error) {
+        console.error("Get Product Reviews Error:", error);
+
+        return res.status(500).send({
+          success: false,
+          message: "Failed to load reviews",
+        });
+      }
+    });
+
+    app.post("/products/:id/reviews", verifyToken, async (req, res) => {
+      try {
+        const product = await findProductByParam(req.params.id);
+
+        if (!product) {
+          return res.status(404).send({
+            success: false,
+            message: "Product not found",
+          });
+        }
+
+        const rating = Number(req.body?.rating);
+
+        const comment =
+          typeof req.body?.comment === "string"
+            ? req.body.comment.trim()
+            : "";
+
+        if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
+          return res.status(400).send({
+            success: false,
+            message: "Please select a rating between 1 and 5 stars",
+          });
+        }
+
+        if (!comment) {
+          return res.status(400).send({
+            success: false,
+            message: "Please write your review",
+          });
+        }
+
+        if (comment.length > 1000) {
+          return res.status(400).send({
+            success: false,
+            message: "Review must be 1000 characters or less",
+          });
+        }
+
+        const userId = req.user.userId;
+
+        const user = await usersCollection.findOne(
+          { _id: new ObjectId(userId) },
+          { projection: { name: 1, email: 1, profileImage: 1 } }
+        );
+
+        if (!user) {
+          return res.status(404).send({
+            success: false,
+            message: "User not found",
+          });
+        }
+
+        const productId = product._id.toString();
+        const now = new Date();
+
+        // One review per customer per product: a second submission edits the
+        // existing review instead of piling up duplicates.
+        const existingReview = await reviewsCollection.findOne({
+          productId,
+          userId,
+        });
+
+        const result = await reviewsCollection.findOneAndUpdate(
+          { productId, userId },
+          {
+            $set: {
+              productId,
+              productName: product.productName || product.name || "",
+              userId,
+              userName: user.name || "Customer",
+              userImage: user.profileImage || "",
+              rating,
+              comment,
+              updatedAt: now,
+            },
+            $setOnInsert: { createdAt: now },
+          },
+          { upsert: true, returnDocument: "after" }
+        );
+
+        const savedReview = result?.value ?? result;
+
+        return res.status(200).send({
+          success: true,
+          message: existingReview
+            ? "Your review has been updated"
+            : "Thank you! Your review has been submitted",
+          review: savedReview,
+        });
+      } catch (error) {
+        console.error("Submit Product Review Error:", error);
+
+        return res.status(500).send({
+          success: false,
+          message: "Could not submit your review. Please try again.",
+        });
+      }
+    });
+
+    app.delete(
+      "/products/:id/reviews/:reviewId",
+      verifyToken,
+      async (req, res) => {
+        try {
+          const { reviewId } = req.params;
+
+          if (!ObjectId.isValid(reviewId)) {
+            return res.status(400).send({
+              success: false,
+              message: "Invalid review id",
+            });
+          }
+
+          const product = await findProductByParam(req.params.id);
+
+          if (!product) {
+            return res.status(404).send({
+              success: false,
+              message: "Product not found",
+            });
+          }
+
+          const review = await reviewsCollection.findOne({
+            _id: new ObjectId(reviewId),
+            productId: product._id.toString(),
+          });
+
+          if (!review) {
+            return res.status(404).send({
+              success: false,
+              message: "Review not found",
+            });
+          }
+
+          if (String(review.userId) !== String(req.user.userId)) {
+            return res.status(403).send({
+              success: false,
+              message: "You can only delete your own review",
+            });
+          }
+
+          await reviewsCollection.deleteOne({ _id: review._id });
+
+          return res.send({
+            success: true,
+            message: "Your review has been deleted",
+          });
+        } catch (error) {
+          console.error("Delete Product Review Error:", error);
+
+          return res.status(500).send({
+            success: false,
+            message: "Could not delete your review. Please try again.",
+          });
+        }
+      }
+    );
 
     // =====================================================
     // DELETE PRODUCT
