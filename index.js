@@ -175,7 +175,7 @@ const sendEmail = async ({ to, subject, text, html }) => {
 
   try {
     await mailTransporter.sendMail({
-      from: process.env.MAIL_FROM || `KolyStore <${mailUser}>`,
+      from: process.env.MAIL_FROM || `Real Tech Solutions <${mailUser}>`,
       to: recipient,
       subject,
       text,
@@ -200,10 +200,8 @@ const allowedOrigins = [
   "http://localhost:5173",
   "http://localhost:5174",
   "http://localhost:3000",
-  "https://kolystore.com",
-  "https://kolystore.com",
-  "https://www.kolystore.com",
-  "https://www.kolystore.com",
+  "https://rtsbd.com",
+  "https://www.rtsbd.com",
   "http://localhost:5000",
   "http://localhost:5000",
 ];
@@ -216,7 +214,7 @@ const corsOptions = {
     if (!origin) return callback(null, true);
     if (
       allowedOrigins.includes(origin) ||
-      origin.includes("kolystore.com") ||
+      origin.includes("rtsbd.com") ||
       origin.includes("localhost")
     ) {
       return callback(null, origin);
@@ -619,7 +617,7 @@ async function run() {
 
     app.get("/sitemap.xml", async (req, res) => {
       try {
-        const baseUrl = "https://kolystore.com";
+        const baseUrl = "https://www.rtsbd.com";
         const staticPages = [
           { url: "/", priority: "1.0", changefreq: "daily" },
           { url: "/all-products", priority: "0.9", changefreq: "daily" },
@@ -728,7 +726,7 @@ async function run() {
         }
 
         const adminEmail = await resolveAdminEmail();
-        const targetEmail = adminEmail || "info@kolystore.com";
+        const targetEmail = adminEmail || "info@rtsbd.com";
 
         const newMessage = {
           name: String(name).trim(),
@@ -743,7 +741,7 @@ async function run() {
         await contactMessagesCollection.insertOne(newMessage);
 
         const emailText = `
-You have received a new contact message on KolyStore:
+You have received a new contact message on Real Tech Solutions:
 
 Name: ${newMessage.name}
 Email: ${newMessage.email}
@@ -758,7 +756,7 @@ Received at: ${new Date().toLocaleString("en-US", { timeZone: "Asia/Dhaka", hour
 
         await sendEmail({
           to: targetEmail,
-          subject: `[KolyStore Contact] ${newMessage.subject || "New Message from " + newMessage.name}`,
+          subject: `[Real Tech Solutions Contact] ${newMessage.subject || "New Message from " + newMessage.name}`,
           text: emailText,
         });
 
@@ -791,7 +789,7 @@ Received at: ${new Date().toLocaleString("en-US", { timeZone: "Asia/Dhaka", hour
         }
 
         const adminEmail = await resolveAdminEmail();
-        const targetEmail = adminEmail || "info@kolystore.com";
+        const targetEmail = adminEmail || "info@rtsbd.com";
 
         const newQuestion = {
           name: String(name || "Anonymous").trim(),
@@ -807,7 +805,7 @@ Received at: ${new Date().toLocaleString("en-US", { timeZone: "Asia/Dhaka", hour
         await productQuestionsCollection.insertOne(newQuestion);
 
         const emailText = `
-You have received a new product question on KolyStore:
+You have received a new product question on Real Tech Solutions:
 
 Product Name: ${newQuestion.productName}
 Product ID: ${newQuestion.productId || "N/A"}
@@ -824,7 +822,7 @@ Received at: ${new Date().toLocaleString("en-US", { timeZone: "Asia/Dhaka", hour
 
         await sendEmail({
           to: targetEmail,
-          subject: `[KolyStore Question] Product Question: ${newQuestion.productName}`,
+          subject: `[Real Tech Solutions Question] Product Question: ${newQuestion.productName}`,
           text: emailText,
         });
 
@@ -1197,7 +1195,7 @@ Received at: ${new Date().toLocaleString("en-US", { timeZone: "Asia/Dhaka", hour
 
     void sendEmail({
   to: user.email,
-  subject: "Welcome to KOLY STORE 🎉",
+  subject: "Welcome to Real Tech Solutions 🎉",
   html: `
     <!DOCTYPE html>
     <html>
@@ -1359,7 +1357,7 @@ Received at: ${new Date().toLocaleString("en-US", { timeZone: "Asia/Dhaka", hour
           <div class="container">
 
             <div class="header">
-              <h1 class="logo">KOLY STORE</h1>
+              <h1 class="logo">Real Tech Solutions</h1>
             </div>
 
             <div class="content">
@@ -1369,7 +1367,7 @@ Received at: ${new Date().toLocaleString("en-US", { timeZone: "Asia/Dhaka", hour
               </h2>
 
               <p class="text">
-                Thank you for joining <strong>KOLY STORE</strong>.
+                Thank you for joining <strong>Real Tech Solutions</strong>.
                 Your account has been created successfully.
               </p>
 
@@ -1400,11 +1398,11 @@ Received at: ${new Date().toLocaleString("en-US", { timeZone: "Asia/Dhaka", hour
 
               <div class="button-wrapper">
                 <a
-                  href="https://kolystore.com"
+                  href="https://www.rtsbd.com"
                   class="button"
                   target="_blank"
                 >
-                  Visit KOLY STORE
+                  Visit Real Tech Solutions
                 </a>
               </div>
 
@@ -1417,15 +1415,15 @@ Received at: ${new Date().toLocaleString("en-US", { timeZone: "Asia/Dhaka", hour
 
             <div class="footer">
               <p class="footer-logo">
-                KOLY STORE
+                Real Tech Solutions
               </p>
 
               <p class="footer-text">
-                Thank you for choosing KOLY STORE.
+                Thank you for choosing Real Tech Solutions.
               </p>
 
               <p class="footer-text">
-                © ${new Date().getFullYear()} KOLY STORE.
+                © ${new Date().getFullYear()} Real Tech Solutions.
                 All rights reserved.
               </p>
             </div>
@@ -1441,10 +1439,10 @@ const adminEmail = await resolveAdminEmail();
 if (adminEmail) {
   void sendEmail({
     to: adminEmail,
-    subject: "New KolyStore Customer Signup",
+    subject: "New Real Tech Solutions Customer Signup",
 
     text:
-      "A new customer has signed up on KolyStore.\n\n" +
+      "A new customer has signed up on Real Tech Solutions.\n\n" +
       `Name: ${user.name || "N/A"}\n` +
       `Email: ${user.email || "N/A"}\n` +
       `Phone: ${user.phone || "N/A"}\n` +
@@ -1522,7 +1520,7 @@ if (adminEmail) {
                   letter-spacing:0.5px;
                 "
               >
-                KolyStore
+                Real Tech Solutions
               </div>
 
               <div
@@ -1574,7 +1572,7 @@ if (adminEmail) {
                 "
               >
                 A new customer has successfully created an account
-                on your KolyStore website.
+                on your Real Tech Solutions website.
               </p>
 
 
@@ -1800,7 +1798,7 @@ if (adminEmail) {
                     color:#6b7280;
                   "
                 >
-                  This is an automated notification from KolyStore.
+                  This is an automated notification from Real Tech Solutions.
                   No action is required unless you need to review the
                   customer's account.
                 </p>
@@ -1831,7 +1829,7 @@ if (adminEmail) {
                   color:#6b7280;
                 "
               >
-                © ${new Date().getFullYear()} KolyStore.
+                © ${new Date().getFullYear()} Real Tech Solutions.
                 All rights reserved.
               </p>
 
@@ -2141,10 +2139,10 @@ if (adminEmail) {
         // Send OTP email
         void sendEmail({
           to: cleanEmail,
-          subject: "Password Reset OTP – KolyStore",
+          subject: "Password Reset OTP – Real Tech Solutions",
           text:
             `Hello ${user.name || "Customer"},\n\n` +
-            `Your OTP for resetting your KolyStore account password is:\n\n` +
+            `Your OTP for resetting your Real Tech Solutions account password is:\n\n` +
             `   ${otp}\n\n` +
             `This OTP is valid for 10 minutes.\n\n` +
             `If you did not request a password reset, please ignore this email.`,
@@ -2290,10 +2288,10 @@ if (adminEmail) {
         // Send confirmation email
         void sendEmail({
           to: cleanEmail,
-          subject: "Password Reset Successful – KolyStore",
+          subject: "Password Reset Successful – Real Tech Solutions",
           text:
             `Hello ${user.name || "Customer"},\n\n` +
-            `Your KolyStore account password has been successfully reset.\n\n` +
+            `Your Real Tech Solutions account password has been successfully reset.\n\n` +
             `You can now log in with your new password.`,
         });
 
@@ -2505,10 +2503,10 @@ if (adminEmail) {
         if (user.email) {
           void sendEmail({
             to: user.email,
-            subject: "Password Changed – KolyStore",
+            subject: "Password Changed – Real Tech Solutions",
             text:
               `Hello ${user.name || "Customer"},\n\n` +
-              `Your KolyStore account password has been successfully updated.\n\n` +
+              `Your Real Tech Solutions account password has been successfully updated.\n\n` +
               `If you did not make this change, please contact support immediately.`,
           });
         }
@@ -5870,7 +5868,7 @@ app.post("/orders", verifyToken, async (req, res) => {
    if (customerEmail) {
   void sendEmail({
     to: customerEmail,
-    subject: `Order Confirmation ${orderId} – KOLY STORE`,
+    subject: `Order Confirmation ${orderId} – Real Tech Solutions`,
 
     text:
       `Hello ${user.name || "Customer"},\n\n` +
@@ -5882,7 +5880,7 @@ app.post("/orders", verifyToken, async (req, res) => {
       `Delivery Address:\n${finalAddress}\n\n` +
       `Items:\n${itemsSummary}\n\n` +
       "We will notify you when your payment is confirmed.\n\n" +
-      "Thank you for shopping with KOLY STORE.",
+      "Thank you for shopping with Real Tech Solutions.",
 
     html: `
 <!DOCTYPE html>
@@ -6236,7 +6234,7 @@ app.post("/orders", verifyToken, async (req, res) => {
       <div class="header">
 
         <h1 class="logo">
-          KOLY STORE
+          Real Tech Solutions
         </h1>
 
         <p class="header-text">
@@ -6340,11 +6338,11 @@ app.post("/orders", verifyToken, async (req, res) => {
         <div class="button-wrapper">
 
           <a
-            href="https://kolystore.com"
+            href="https://www.rtsbd.com"
             class="button"
             target="_blank"
           >
-            Visit KOLY STORE
+            Visit Real Tech Solutions
           </a>
 
         </div>
@@ -6359,7 +6357,7 @@ app.post("/orders", verifyToken, async (req, res) => {
             text-align: center;
           "
         >
-          Thank you for shopping with KOLY STORE.
+          Thank you for shopping with Real Tech Solutions.
         </p>
 
       </div>
@@ -6369,7 +6367,7 @@ app.post("/orders", verifyToken, async (req, res) => {
       <div class="footer">
 
         <p class="footer-logo">
-          KOLY STORE
+          Real Tech Solutions
         </p>
 
         <p class="footer-text">
@@ -6377,7 +6375,7 @@ app.post("/orders", verifyToken, async (req, res) => {
         </p>
 
         <p class="copyright">
-          © ${new Date().getFullYear()} KOLY STORE.
+          © ${new Date().getFullYear()} Real Tech Solutions.
           All rights reserved.
         </p>
 
@@ -6398,10 +6396,10 @@ app.post("/orders", verifyToken, async (req, res) => {
 if (adminEmail) {
   void sendEmail({
     to: adminEmail,
-    subject: `New order ${orderId} – KolyStore`,
+    subject: `New order ${orderId} – Real Tech Solutions`,
 
     text:
-      "A new order has been placed on KolyStore.\n\n" +
+      "A new order has been placed on Real Tech Solutions.\n\n" +
       `Order ID: ${orderId}\n` +
       `Customer: ${user.name || "N/A"}\n` +
       `Email: ${user.email || "N/A"}\n` +
@@ -6421,7 +6419,7 @@ if (adminEmail) {
     name="viewport"
     content="width=device-width, initial-scale=1.0"
   />
-  <title>New Order - KolyStore</title>
+  <title>New Order - Real Tech Solutions</title>
 </head>
 
 <body
@@ -6482,7 +6480,7 @@ if (adminEmail) {
                 color:#ffffff;
               "
             >
-              KolyStore
+              Real Tech Solutions
             </div>
 
             <div
@@ -6531,7 +6529,7 @@ if (adminEmail) {
                 color:#6b7280;
               "
             >
-              A new order has been successfully placed on KolyStore.
+              A new order has been successfully placed on Real Tech Solutions.
             </p>
 
 
@@ -6957,7 +6955,7 @@ if (adminEmail) {
                   "
                 >
                   This is an automated order notification from
-                  KolyStore. Please review the order details and
+                  Real Tech Solutions. Please review the order details and
                   process the order accordingly.
                 </td>
               </tr>
@@ -6986,7 +6984,7 @@ if (adminEmail) {
                 color:#6b7280;
               "
             >
-              © ${new Date().getFullYear()} KolyStore.
+              © ${new Date().getFullYear()} Real Tech Solutions.
               All rights reserved.
             </p>
 
@@ -7347,7 +7345,7 @@ app.patch(
              if (customerEmail) {
   void sendEmail({
     to: customerEmail,
-    subject: `Order ${order.orderId || id} Update – KOLY STORE`,
+    subject: `Order ${order.orderId || id} Update – Real Tech Solutions`,
 
     text:
       `Hello ${customerName || "Customer"},\n\n` +
@@ -7355,7 +7353,7 @@ app.patch(
       `Order ID: ${order.orderId || id}\n` +
       `Previous Status: ${formatStatusLabel(previousStatus)}\n` +
       `Current Status: ${formatStatusLabel(nextStatus)}\n\n` +
-      "Thank you for shopping with KOLY STORE.",
+      "Thank you for shopping with Real Tech Solutions.",
 
     html: `
 <!DOCTYPE html>
@@ -7708,7 +7706,7 @@ app.patch(
       <div class="header">
 
         <h1 class="logo">
-          KOLY STORE
+          Real Tech Solutions
         </h1>
 
         <p class="header-text">
@@ -7799,11 +7797,11 @@ app.patch(
         <div class="button-wrapper">
 
           <a
-            href="https://kolystore.com"
+            href="https://www.rtsbd.com"
             class="button"
             target="_blank"
           >
-            Visit KOLY STORE
+            Visit Real Tech Solutions
           </a>
 
         </div>
@@ -7818,7 +7816,7 @@ app.patch(
             text-align: center;
           "
         >
-          Thank you for shopping with KOLY STORE.
+          Thank you for shopping with Real Tech Solutions.
         </p>
 
       </div>
@@ -7828,7 +7826,7 @@ app.patch(
       <div class="footer">
 
         <p class="footer-logo">
-          KOLY STORE
+          Real Tech Solutions
         </p>
 
         <p class="footer-text">
@@ -7836,7 +7834,7 @@ app.patch(
         </p>
 
         <p class="copyright">
-          © ${new Date().getFullYear()} KOLY STORE.
+          © ${new Date().getFullYear()} Real Tech Solutions.
           All rights reserved.
         </p>
 
