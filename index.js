@@ -137,9 +137,10 @@ const mailTransporter =
 
 if (!mailTransporter) {
   console.warn("Email is disabled: NODEMAILER_USER and NODEMAILER_PASS are required.");
-} else {
+} else if (!process.env.VERCEL) {
   // This runs at app startup, so cPanel's Node.js application log shows a
   // concrete SMTP error instead of silently failing after an order is placed.
+  // Skipped on Vercel: a cold-start SMTP handshake would delay every first request.
   mailTransporter.verify().then(
     () => console.log(`Email SMTP connection verified (${smtpHost || "Gmail"}).`),
     (error) => console.error("Email SMTP connection failed:", error.message)
@@ -160,6 +161,11 @@ const resolveAdminEmail = async () => {
   const fromEnv = (process.env.ADMIN_EMAIL || "").trim();
   return fromEnv || null;
 };
+
+// Public URL of the storefront logo; emails cannot reference bundled assets.
+const EMAIL_LOGO_URL = (
+  process.env.EMAIL_LOGO_URL || "https://www.rtsbd.com/logo.png"
+).trim();
 
 const sendEmail = async ({ to, subject, text, html }) => {
   const recipient = typeof to === "string" ? to.trim() : "";
@@ -202,8 +208,8 @@ const allowedOrigins = [
   "http://localhost:3000",
   "https://rtsbd.com",
   "https://www.rtsbd.com",
-  "http://localhost:5000",
-  "http://localhost:5000",
+  "https://koly-server.vercel.app",
+  "https://koly-server.vercel.app",
 ];
 
 if (process.env.CLIENT_URL) allowedOrigins.push(process.env.CLIENT_URL);
@@ -275,21 +281,36 @@ const parseStringList = (value) => {
 // UPLOAD FOLDER
 // =====================================================
 
-const uploadFolder = path.join(
-  __dirname,
-  "uploads"
-);
+// Vercel's function filesystem is read-only apart from /tmp, and /tmp is
+// per-instance. Cloudinary is the durable store there; /tmp only holds the
+// temp file until it is uploaded.
+const bundledUploadFolder = path.join(__dirname, "uploads");
 
-if (!fs.existsSync(uploadFolder)) {
-  fs.mkdirSync(uploadFolder, {
-    recursive: true,
-  });
+const uploadFolder = process.env.VERCEL
+  ? path.join(require("os").tmpdir(), "uploads")
+  : bundledUploadFolder;
+
+try {
+  if (!fs.existsSync(uploadFolder)) {
+    fs.mkdirSync(uploadFolder, {
+      recursive: true,
+    });
+  }
+} catch (error) {
+  console.error("Could not create upload folder:", error.message);
 }
 
 app.use(
   "/uploads",
   express.static(uploadFolder)
 );
+
+if (uploadFolder !== bundledUploadFolder) {
+  app.use(
+    "/uploads",
+    express.static(bundledUploadFolder)
+  );
+}
 
 // =====================================================
 // MULTER
@@ -316,7 +337,9 @@ const upload = multer({
 
   limits: {
     files: 3,
-    fileSize: 5 * 1024 * 1024,
+    // Vercel rejects request bodies above 4.5 MB, so keep multipart uploads
+    // comfortably below that limit.
+    fileSize: 4 * 1024 * 1024,
   },
 
   fileFilter: function (req, file, cb) {
@@ -623,6 +646,12 @@ async function run() {
           { url: "/all-products", priority: "0.9", changefreq: "daily" },
           { url: "/about", priority: "0.7", changefreq: "monthly" },
           { url: "/contact-us", priority: "0.7", changefreq: "monthly" },
+          { url: "/services/laptop-sales", priority: "0.7", changefreq: "monthly" },
+          { url: "/services/desktop-solutions", priority: "0.7", changefreq: "monthly" },
+          { url: "/services/cctv-solutions", priority: "0.7", changefreq: "monthly" },
+          { url: "/services/networking-solutions", priority: "0.7", changefreq: "monthly" },
+          { url: "/services/it-support-service", priority: "0.7", changefreq: "monthly" },
+          { url: "/services/corporate-service", priority: "0.7", changefreq: "monthly" },
         ];
 
         let categories = [
@@ -1206,14 +1235,14 @@ Received at: ${new Date().toLocaleString("en-US", { timeZone: "Asia/Dhaka", hour
           body {
             margin: 0;
             padding: 0;
-            background: #f5f7f4;
+            background: #F5F7FA;
             font-family: Arial, Helvetica, sans-serif;
           }
 
           .wrapper {
             width: 100%;
             padding: 30px 15px;
-            background: #f5f7f4;
+            background: #F5F7FA;
           }
 
           .container {
@@ -1226,16 +1255,18 @@ Received at: ${new Date().toLocaleString("en-US", { timeZone: "Asia/Dhaka", hour
           }
 
           .header {
-            background: #498520;
-            padding: 30px 20px;
+            background: #ffffff;
+            padding: 24px 20px;
             text-align: center;
+            border-bottom: 4px solid #2563EB;
           }
 
           .logo {
-            margin: 0;
-            color: #ffffff;
-            font-size: 28px;
-            font-weight: 700;
+            display: block;
+            margin: 0 auto;
+            width: 190px;
+            max-width: 70%;
+            height: auto;
           }
 
           .content {
@@ -1257,14 +1288,14 @@ Received at: ${new Date().toLocaleString("en-US", { timeZone: "Asia/Dhaka", hour
           .card {
             margin: 25px 0;
             padding: 20px;
-            background: #f7faf5;
-            border: 1px solid #dcebd4;
+            background: #EFF6FF;
+            border: 1px solid #BFDBFE;
             border-radius: 12px;
           }
 
           .card-title {
             margin: 0 0 15px;
-            color: #498520;
+            color: #2563EB;
             font-size: 17px;
           }
 
@@ -1282,7 +1313,7 @@ Received at: ${new Date().toLocaleString("en-US", { timeZone: "Asia/Dhaka", hour
           .button {
             display: inline-block;
             padding: 14px 28px;
-            background: #498520;
+            background: #2563EB;
             color: #ffffff !important;
             text-decoration: none;
             border-radius: 8px;
@@ -1293,12 +1324,12 @@ Received at: ${new Date().toLocaleString("en-US", { timeZone: "Asia/Dhaka", hour
           .footer {
             padding: 22px 20px;
             text-align: center;
-            background: #f8f8f8;
-            border-top: 1px solid #eeeeee;
+            background: #F8FAFC;
+            border-top: 1px solid #E2E8F0;
           }
 
           .footer-logo {
-            color: #498520;
+            color: #2563EB;
             font-size: 17px;
             font-weight: 700;
             margin: 0 0 8px;
@@ -1308,6 +1339,12 @@ Received at: ${new Date().toLocaleString("en-US", { timeZone: "Asia/Dhaka", hour
             color: #888888;
             font-size: 12px;
             margin: 0;
+          }
+
+          @media only screen and (min-width: 481px) and (max-width: 768px) {
+            .header {
+              display: none;
+            }
           }
 
           @media only screen and (max-width: 480px) {
@@ -1320,11 +1357,11 @@ Received at: ${new Date().toLocaleString("en-US", { timeZone: "Asia/Dhaka", hour
             }
 
             .header {
-              padding: 24px 15px;
+              padding: 20px 15px;
             }
 
             .logo {
-              font-size: 23px;
+              width: 150px;
             }
 
             .content {
@@ -1357,7 +1394,12 @@ Received at: ${new Date().toLocaleString("en-US", { timeZone: "Asia/Dhaka", hour
           <div class="container">
 
             <div class="header">
-              <h1 class="logo">Real Tech Solutions</h1>
+              <img
+                class="logo"
+                src="${EMAIL_LOGO_URL}"
+                alt="Real Tech Solutions"
+                width="190"
+              />
             </div>
 
             <div class="content">
@@ -1459,13 +1501,21 @@ if (adminEmail) {
     content="width=device-width, initial-scale=1.0"
   />
   <title>New Customer Signup</title>
+
+  <style>
+    @media only screen and (min-width: 481px) and (max-width: 768px) {
+      .email-logo {
+        display: none !important;
+      }
+    }
+  </style>
 </head>
 
 <body
   style="
     margin:0;
     padding:0;
-    background-color:#f4f7f2;
+    background-color:#F5F7FA;
     font-family:Arial, Helvetica, sans-serif;
     color:#1f2937;
   "
@@ -1479,7 +1529,7 @@ if (adminEmail) {
     border="0"
     style="
       width:100%;
-      background-color:#f4f7f2;
+      background-color:#F5F7FA;
       padding:30px 15px;
     "
   >
@@ -1505,30 +1555,33 @@ if (adminEmail) {
           <tr>
             <td
               style="
-                background-color:#498520;
-                padding:28px 25px;
+                background-color:#ffffff;
+                padding:24px 25px;
                 text-align:center;
+                border-bottom:4px solid #2563EB;
               "
             >
 
-              <div
+              <img
+                class="email-logo"
+                src="${EMAIL_LOGO_URL}"
+                alt="Real Tech Solutions"
+                width="190"
                 style="
-                  font-size:26px;
-                  line-height:1.3;
-                  font-weight:700;
-                  color:#ffffff;
-                  letter-spacing:0.5px;
+                  display:block;
+                  margin:0 auto;
+                  width:190px;
+                  max-width:70%;
+                  height:auto;
                 "
-              >
-                Real Tech Solutions
-              </div>
+              />
 
               <div
                 style="
-                  margin-top:7px;
-                  font-size:13px;
+                  margin-top:8px;
+                  font-size:12px;
                   line-height:1.5;
-                  color:#eaf5e4;
+                  color:#64748B;
                 "
               >
                 Customer Management System
@@ -1596,7 +1649,7 @@ if (adminEmail) {
                   <td
                     colspan="2"
                     style="
-                      background-color:#f8faf7;
+                      background-color:#F8FAFC;
                       padding:15px 16px;
                       font-size:14px;
                       line-height:1.5;
@@ -1763,7 +1816,7 @@ if (adminEmail) {
                       font-size:13px;
                       line-height:1.5;
                       font-weight:700;
-                      color:#498520;
+                      color:#2563EB;
                       vertical-align:middle;
                       white-space:nowrap;
                       overflow:hidden;
@@ -1783,8 +1836,8 @@ if (adminEmail) {
                 style="
                   margin-top:24px;
                   padding:14px 16px;
-                  background-color:#f8faf7;
-                  border-left:4px solid #498520;
+                  background-color:#F8FAFC;
+                  border-left:4px solid #2563EB;
                   border-radius:6px;
                 "
               >
@@ -1814,9 +1867,9 @@ if (adminEmail) {
             <td
               style="
                 padding:20px 25px;
-                background-color:#f8faf7;
+                background-color:#F8FAFC;
                 text-align:center;
-                border-top:1px solid #edf0eb;
+                border-top:1px solid #E2E8F0;
               "
             >
 
@@ -4057,6 +4110,15 @@ app.get("/products", async (req, res) => {
             });
         }
 
+        // Carts and wishlists keep their own copy of each product, so the
+        // references have to go too or deleted products stay in user carts.
+        await Promise.all([
+            cartCollection.deleteMany({ productId: String(id) }),
+            wishlistCollection.deleteMany({ productId: String(id) }),
+        ]).catch((error) => {
+            console.error("Product reference cleanup failed:", error);
+        });
+
         return res.status(200).send({
             success: true,
             message: "Product deleted successfully",
@@ -5897,14 +5959,14 @@ app.post("/orders", verifyToken, async (req, res) => {
     body {
       margin: 0;
       padding: 0;
-      background-color: #f5f7f4;
+      background-color: #F5F7FA;
       font-family: Arial, Helvetica, sans-serif;
     }
 
     .wrapper {
       width: 100%;
       padding: 35px 15px;
-      background-color: #f5f7f4;
+      background-color: #F5F7FA;
     }
 
     .container {
@@ -5919,23 +5981,23 @@ app.post("/orders", verifyToken, async (req, res) => {
 
     /* Header */
     .header {
-      background-color: #498520;
-      padding: 30px 20px;
+      background-color: #ffffff;
+      padding: 24px 20px;
       text-align: center;
+      border-bottom: 4px solid #2563EB;
     }
 
     .logo {
-      margin: 0;
-      color: #ffffff;
-      font-size: 27px;
-      line-height: 1.3;
-      font-weight: 700;
-      letter-spacing: 1px;
+      display: block;
+      margin: 0 auto;
+      width: 180px;
+      max-width: 70%;
+      height: auto;
     }
 
     .header-text {
       margin: 8px 0 0;
-      color: #eaf5e3;
+      color: #64748B;
       font-size: 13px;
       line-height: 1.5;
     }
@@ -5950,8 +6012,8 @@ app.post("/orders", verifyToken, async (req, res) => {
       height: 55px;
       margin: 0 auto 20px;
       border-radius: 50%;
-      background-color: #edf7e8;
-      color: #498520;
+      background-color: #DBEAFE;
+      color: #2563EB;
       font-size: 28px;
       line-height: 55px;
       text-align: center;
@@ -5977,14 +6039,14 @@ app.post("/orders", verifyToken, async (req, res) => {
     .order-card {
       margin: 25px 0;
       padding: 22px;
-      background-color: #f7faf5;
-      border: 1px solid #dcebd4;
+      background-color: #EFF6FF;
+      border: 1px solid #BFDBFE;
       border-radius: 12px;
     }
 
     .section-title {
       margin: 0 0 18px;
-      color: #498520;
+      color: #2563EB;
       font-size: 17px;
       line-height: 1.4;
       font-weight: 700;
@@ -5992,7 +6054,7 @@ app.post("/orders", verifyToken, async (req, res) => {
 
     .row {
       padding: 9px 0;
-      border-bottom: 1px solid #e5edde;
+      border-bottom: 1px solid #DBEAFE;
       font-size: 14px;
       line-height: 1.6;
     }
@@ -6079,7 +6141,7 @@ app.post("/orders", verifyToken, async (req, res) => {
     .button {
       display: inline-block;
       padding: 14px 28px;
-      background-color: #498520;
+      background-color: #2563EB;
       color: #ffffff !important;
       text-decoration: none;
       border-radius: 8px;
@@ -6091,14 +6153,14 @@ app.post("/orders", verifyToken, async (req, res) => {
     /* Footer */
     .footer {
       padding: 24px 25px;
-      background-color: #f8f8f8;
-      border-top: 1px solid #eeeeee;
+      background-color: #F8FAFC;
+      border-top: 1px solid #E2E8F0;
       text-align: center;
     }
 
     .footer-logo {
       margin: 0 0 8px;
-      color: #498520;
+      color: #2563EB;
       font-size: 17px;
       font-weight: 700;
     }
@@ -6128,6 +6190,12 @@ app.post("/orders", verifyToken, async (req, res) => {
       }
     }
 
+    @media only screen and (min-width: 481px) and (max-width: 768px) {
+      .logo {
+        display: none;
+      }
+    }
+
     /* Mobile */
     @media only screen and (max-width: 480px) {
       .wrapper {
@@ -6139,11 +6207,11 @@ app.post("/orders", verifyToken, async (req, res) => {
       }
 
       .header {
-        padding: 24px 15px;
+        padding: 20px 15px;
       }
 
       .logo {
-        font-size: 23px;
+        width: 150px;
       }
 
       .header-text {
@@ -6233,9 +6301,12 @@ app.post("/orders", verifyToken, async (req, res) => {
       <!-- HEADER -->
       <div class="header">
 
-        <h1 class="logo">
-          Real Tech Solutions
-        </h1>
+        <img
+          class="logo"
+          src="${EMAIL_LOGO_URL}"
+          alt="Real Tech Solutions"
+          width="180"
+        />
 
         <p class="header-text">
           Your trusted online store
@@ -6420,13 +6491,21 @@ if (adminEmail) {
     content="width=device-width, initial-scale=1.0"
   />
   <title>New Order - Real Tech Solutions</title>
+
+  <style>
+    @media only screen and (min-width: 481px) and (max-width: 768px) {
+      .email-logo {
+        display: none !important;
+      }
+    }
+  </style>
 </head>
 
 <body
   style="
     margin:0;
     padding:0;
-    background:#f4f7f2;
+    background:#F5F7FA;
     font-family:Arial,Helvetica,sans-serif;
     color:#1f2937;
   "
@@ -6439,7 +6518,7 @@ if (adminEmail) {
   border="0"
   style="
     width:100%;
-    background:#f4f7f2;
+    background:#F5F7FA;
     padding:12px 8px;
   "
 >
@@ -6466,29 +6545,33 @@ if (adminEmail) {
         <tr>
           <td
             style="
-              background:#498520;
-              padding:18px 15px;
+              background:#ffffff;
+              padding:20px 15px;
               text-align:center;
+              border-bottom:4px solid #2563EB;
             "
           >
 
-            <div
+            <img
+              class="email-logo"
+              src="${EMAIL_LOGO_URL}"
+              alt="Real Tech Solutions"
+              width="170"
               style="
-                font-size:22px;
-                line-height:1.2;
-                font-weight:700;
-                color:#ffffff;
+                display:block;
+                margin:0 auto;
+                width:170px;
+                max-width:70%;
+                height:auto;
               "
-            >
-              Real Tech Solutions
-            </div>
+            />
 
             <div
               style="
-                margin-top:4px;
+                margin-top:6px;
                 font-size:11px;
                 line-height:1.4;
-                color:#eaf5e4;
+                color:#64748B;
               "
             >
               Order Management System
@@ -6541,8 +6624,8 @@ if (adminEmail) {
               border="0"
               style="
                 width:100%;
-                background:#f8faf7;
-                border:1px solid #e2eadf;
+                background:#F8FAFC;
+                border:1px solid #DBEAFE;
                 border-radius:8px;
               "
             >
@@ -6567,7 +6650,7 @@ if (adminEmail) {
                     padding:10px 12px;
                     font-size:12px;
                     font-weight:700;
-                    color:#498520;
+                    color:#2563EB;
                     white-space:nowrap;
                     overflow:hidden;
                     text-overflow:ellipsis;
@@ -6601,7 +6684,7 @@ if (adminEmail) {
                   colspan="2"
                   style="
                     padding:10px 12px;
-                    background:#f8faf7;
+                    background:#F8FAFC;
                     border-bottom:1px solid #e5e7eb;
                     font-size:12px;
                     font-weight:700;
@@ -6868,7 +6951,7 @@ if (adminEmail) {
                     font-size:13px;
                     line-height:1.3;
                     font-weight:700;
-                    color:#498520;
+                    color:#2563EB;
                     white-space:nowrap;
                     overflow:hidden;
                     text-overflow:ellipsis;
@@ -6902,7 +6985,7 @@ if (adminEmail) {
                 <td
                   style="
                     padding:10px 12px;
-                    background:#f8faf7;
+                    background:#F8FAFC;
                     border-bottom:1px solid #e5e7eb;
                     font-size:12px;
                     font-weight:700;
@@ -6940,8 +7023,8 @@ if (adminEmail) {
               style="
                 width:100%;
                 margin-top:12px;
-                background:#f8faf7;
-                border-left:3px solid #498520;
+                background:#F8FAFC;
+                border-left:3px solid #2563EB;
                 border-radius:5px;
               "
             >
@@ -6970,9 +7053,9 @@ if (adminEmail) {
           <td
             style="
               padding:13px 12px;
-              background:#f8faf7;
+              background:#F8FAFC;
               text-align:center;
-              border-top:1px solid #edf0eb;
+              border-top:1px solid #E2E8F0;
             "
           >
 
@@ -7373,14 +7456,14 @@ app.patch(
     body {
       margin: 0;
       padding: 0;
-      background-color: #f5f7f4;
+      background-color: #F5F7FA;
       font-family: Arial, Helvetica, sans-serif;
     }
 
     .wrapper {
       width: 100%;
       padding: 35px 15px;
-      background-color: #f5f7f4;
+      background-color: #F5F7FA;
     }
 
     .container {
@@ -7395,23 +7478,23 @@ app.patch(
 
     /* Header */
     .header {
-      padding: 30px 20px;
-      background-color: #498520;
+      padding: 24px 20px;
+      background-color: #ffffff;
       text-align: center;
+      border-bottom: 4px solid #2563EB;
     }
 
     .logo {
-      margin: 0;
-      color: #ffffff;
-      font-size: 27px;
-      line-height: 1.3;
-      font-weight: 700;
-      letter-spacing: 1px;
+      display: block;
+      margin: 0 auto;
+      width: 180px;
+      max-width: 70%;
+      height: auto;
     }
 
     .header-text {
       margin: 8px 0 0;
-      color: #eaf5e3;
+      color: #64748B;
       font-size: 13px;
       line-height: 1.5;
     }
@@ -7426,8 +7509,8 @@ app.patch(
       height: 55px;
       margin: 0 auto 20px;
       border-radius: 50%;
-      background-color: #edf7e8;
-      color: #498520;
+      background-color: #DBEAFE;
+      color: #2563EB;
       font-size: 27px;
       line-height: 55px;
       text-align: center;
@@ -7454,14 +7537,14 @@ app.patch(
     .order-card {
       margin: 25px 0;
       padding: 22px;
-      background-color: #f7faf5;
-      border: 1px solid #dcebd4;
+      background-color: #EFF6FF;
+      border: 1px solid #BFDBFE;
       border-radius: 12px;
     }
 
     .section-title {
       margin: 0 0 18px;
-      color: #498520;
+      color: #2563EB;
       font-size: 17px;
       line-height: 1.4;
       font-weight: 700;
@@ -7497,8 +7580,8 @@ app.patch(
 
     .current {
       margin-top: 12px;
-      background-color: #edf7e8;
-      border: 1px solid #cfe5c5;
+      background-color: #DBEAFE;
+      border: 1px solid #BFDBFE;
     }
 
     .status-label {
@@ -7521,12 +7604,12 @@ app.patch(
     }
 
     .current .status-value {
-      color: #498520;
+      color: #2563EB;
     }
 
     .arrow {
       margin: 10px 0;
-      color: #498520;
+      color: #2563EB;
       font-size: 20px;
       text-align: center;
     }
@@ -7535,14 +7618,14 @@ app.patch(
     .notice {
       margin: 25px 0;
       padding: 16px 18px;
-      background-color: #f7faf5;
-      border-left: 4px solid #498520;
+      background-color: #EFF6FF;
+      border-left: 4px solid #2563EB;
       border-radius: 6px;
     }
 
     .notice p {
       margin: 0;
-      color: #5f665c;
+      color: #475569;
       font-size: 13px;
       line-height: 1.7;
     }
@@ -7556,7 +7639,7 @@ app.patch(
     .button {
       display: inline-block;
       padding: 14px 28px;
-      background-color: #498520;
+      background-color: #2563EB;
       color: #ffffff !important;
       text-decoration: none;
       border-radius: 8px;
@@ -7568,14 +7651,14 @@ app.patch(
     /* Footer */
     .footer {
       padding: 24px 25px;
-      background-color: #f8f8f8;
-      border-top: 1px solid #eeeeee;
+      background-color: #F8FAFC;
+      border-top: 1px solid #E2E8F0;
       text-align: center;
     }
 
     .footer-logo {
       margin: 0 0 8px;
-      color: #498520;
+      color: #2563EB;
       font-size: 17px;
       line-height: 1.4;
       font-weight: 700;
@@ -7606,6 +7689,12 @@ app.patch(
       }
     }
 
+    @media only screen and (min-width: 481px) and (max-width: 768px) {
+      .logo {
+        display: none;
+      }
+    }
+
     /* Mobile */
     @media only screen and (max-width: 480px) {
       .wrapper {
@@ -7617,11 +7706,11 @@ app.patch(
       }
 
       .header {
-        padding: 24px 15px;
+        padding: 20px 15px;
       }
 
       .logo {
-        font-size: 23px;
+        width: 150px;
       }
 
       .header-text {
@@ -7705,9 +7794,12 @@ app.patch(
       <!-- HEADER -->
       <div class="header">
 
-        <h1 class="logo">
-          Real Tech Solutions
-        </h1>
+        <img
+          class="logo"
+          src="${EMAIL_LOGO_URL}"
+          alt="Real Tech Solutions"
+          width="180"
+        />
 
         <p class="header-text">
           Your trusted online store
@@ -8372,27 +8464,63 @@ app.delete(
       }
     );
 
-    // =====================================================
-    // START SERVER
-    // =====================================================
-
-    app.listen(
-      port,
-      () => {
-        console.log(
-          `Koly_Store is running on port ${port}`
-        );
-      }
-    );
-
   } catch (error) {
 
     console.error(
       "MongoDB Connection Errors",
       error
     );
+
+    throw error;
   }
 }
 
+// Routes are registered inside run() after the database connects, so every
+// invocation has to wait for that boot exactly once. On Vercel a container is
+// reused across requests, so this promise is kept at module scope.
+let bootPromise = null;
 
-run();
+const boot = () => {
+  if (!bootPromise) {
+    bootPromise = run().catch((error) => {
+      // Allow the next request to retry the connection instead of caching a
+      // rejected promise for the lifetime of the container.
+      bootPromise = null;
+      throw error;
+    });
+  }
+
+  return bootPromise;
+};
+
+const handler = async (req, res) => {
+  try {
+    await boot();
+  } catch (error) {
+    return res.status(503).json({
+      success: false,
+      message: "Server is starting up. Please try again in a moment.",
+    });
+  }
+
+  return app(req, res);
+};
+
+if (require.main === module) {
+  boot()
+    .then(() => {
+      app.listen(
+        port,
+        () => {
+          console.log(
+            `Koly_Store is running on port ${port}`
+          );
+        }
+      );
+    })
+    .catch(() => process.exit(1));
+}
+
+module.exports = handler;
+module.exports.app = app;
+module.exports.boot = boot;
