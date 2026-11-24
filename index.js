@@ -502,7 +502,7 @@ const verifyAdmin = async (req, res, next) => {
 
 const uri =
   process.env.MONGODB_URI ||
-  `mongodb://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0-shard-00-00.nnldx.mongodb.net:27017,cluster0-shard-00-01.nnldx.mongodb.net:27017,cluster0-shard-00-02.nnldx.mongodb.net:27017/?ssl=true&replicaSet=atlas-6day14-shard-0&authSource=admin`;
+  `mongodb://${process.env.DB_USER}:${process.env.DB_PASS}@ac-c8m2sft-shard-00-00.jutwgbv.mongodb.net:27017,ac-c8m2sft-shard-00-01.jutwgbv.mongodb.net:27017,ac-c8m2sft-shard-00-02.jutwgbv.mongodb.net:27017/?ssl=true&replicaSet=atlas-262d59-shard-0&authSource=admin`;
 
 const client = new MongoClient(uri, {
   serverApi: {
