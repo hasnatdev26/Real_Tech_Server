@@ -3626,6 +3626,9 @@ app.get("/categories", async (req, res) => {
             "Monitor",
             "Accessories",
             "Gaming",
+            "Display",
+            "Office Equipment",
+            "Gadgets",
         ];
 
         return res.status(200).send({
@@ -5404,6 +5407,8 @@ app.post("/orders", verifyToken, async (req, res) => {
       paymentMethod,
       items: requestedItems = [],
       address: submittedAddress = "",
+      district: submittedDistrict = "",
+      deliveryArea: submittedDeliveryArea = "",
       payment = {},
     } = req.body;
 
@@ -5411,7 +5416,7 @@ app.post("/orders", verifyToken, async (req, res) => {
     // PAYMENT METHOD VALIDATION
     // =========================================================
 
-    const allowedPaymentMethods = ["paypal"];
+    const allowedPaymentMethods = ["bkash", "rocket", "nagad"];
 
     if (!allowedPaymentMethods.includes(paymentMethod)) {
       return res.status(400).send({
@@ -5427,7 +5432,7 @@ app.post("/orders", verifyToken, async (req, res) => {
     ) {
       return res.status(400).send({
         success: false,
-        message: "PayPal transaction ID is required",
+        message: "Transaction ID is required",
       });
     }
 
@@ -5479,6 +5484,11 @@ app.post("/orders", verifyToken, async (req, res) => {
         message: "Please provide your delivery address",
       });
     }
+
+    const finalDistrict =
+      typeof submittedDistrict === "string"
+        ? submittedDistrict.trim()
+        : "";
 
     // =========================================================
     // GET ORDER ITEMS
@@ -5747,15 +5757,24 @@ app.post("/orders", verifyToken, async (req, res) => {
       0,
       Number(shippingSettings?.deliveryCharge) || 0
     );
-    const shippingFee = globalDeliveryCharge;
+    const normalizedDeliveryArea = String(submittedDeliveryArea || "")
+      .trim()
+      .toLowerCase();
+    const areaShippingFee =
+      normalizedDeliveryArea === "inside"
+        ? 100
+        : normalizedDeliveryArea === "outside"
+          ? 150
+          : null;
+    const shippingFee = areaShippingFee ?? globalDeliveryCharge;
     const total = Number((subtotal + shippingFee).toFixed(2));
 
     // =========================================================
-    // PAYPAL
+    // MOBILE BANKING PAYMENT
     // =========================================================
 
     const paymentData = {
-      method: "paypal",
+      method: paymentMethod,
       status: "pending",
       transactionId: payment.transactionId.trim(),
       senderName: "",
@@ -5815,6 +5834,7 @@ app.post("/orders", verifyToken, async (req, res) => {
         email: user.email || "",
         phone: user.phone || "",
         address: finalAddress,
+        district: finalDistrict,
       },
 
       items: lineItems,
@@ -5822,6 +5842,8 @@ app.post("/orders", verifyToken, async (req, res) => {
       subtotal: Number(subtotal.toFixed(2)),
 
       shippingFee: Number(shippingFee.toFixed(2)),
+
+      deliveryArea: normalizedDeliveryArea,
 
       total,
 
@@ -7118,7 +7140,7 @@ if (adminEmail) {
       total,
 
       message:
-        "Order placed successfully. Your PayPal payment is pending verification.",
+        "Order placed successfully. Your payment is pending verification.",
     });
 
   } catch (error) {
