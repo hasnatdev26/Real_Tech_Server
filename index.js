@@ -3234,7 +3234,7 @@ app.post(
         category,
         quantity,
         price,
-        discount,
+        cashPrice,
         hasSizes,
         sizes,
         hasColors,
@@ -3274,7 +3274,18 @@ app.post(
       ) {
         return res.status(400).send({
           success: false,
-          message: "Price is required",
+          message: "Regular price is required",
+        });
+      }
+
+      if (
+        cashPrice === undefined ||
+        cashPrice === null ||
+        cashPrice === ""
+      ) {
+        return res.status(400).send({
+          success: false,
+          message: "Cash price is required",
         });
       }
 
@@ -3291,6 +3302,9 @@ app.post(
         "Monitor",
         "Accessories",
         "Gaming",
+        "Display",
+        "Office Equipment",
+        "Gadgets",
       ];
 
       if (!allowedCategories.includes(cleanCategory)) {
@@ -3393,7 +3407,7 @@ app.post(
 
       const productQuantity = Number(quantity);
       const productPrice = Number(price);
-      const productDiscount = Number(discount) || 0;
+      const productCashPrice = Number(cashPrice);
 
       if (
         !Number.isFinite(productQuantity) ||
@@ -3411,18 +3425,24 @@ app.post(
       ) {
         return res.status(400).send({
           success: false,
-          message: "Invalid price",
+          message: "Invalid regular price",
         });
       }
 
       if (
-        !Number.isFinite(productDiscount) ||
-        productDiscount < 0 ||
-        productDiscount > 100
+        !Number.isFinite(productCashPrice) ||
+        productCashPrice < 0
       ) {
         return res.status(400).send({
           success: false,
-          message: "Discount must be between 0 and 100",
+          message: "Invalid cash price",
+        });
+      }
+
+      if (productCashPrice > productPrice) {
+        return res.status(400).send({
+          success: false,
+          message: "Cash price cannot be higher than regular price",
         });
       }
 
@@ -3438,9 +3458,12 @@ app.post(
         });
       }
 
-      const discountedPrice =
-        productPrice -
-        (productPrice * productDiscount) / 100;
+      const productDiscount =
+        productPrice > 0
+          ? Number(
+              (((productPrice - productCashPrice) / productPrice) * 100).toFixed(2)
+            )
+          : 0;
 
       const images = await Promise.all(
         (req.files || []).map((file) =>
@@ -3527,11 +3550,11 @@ app.post(
         currency: "BDT",
         currencySymbol: "৳",
 
+        cashPrice: Number(productCashPrice.toFixed(2)),
+
         discount: productDiscount,
 
-        discountedPrice: Number(
-          discountedPrice.toFixed(2)
-        ),
+        discountedPrice: Number(productCashPrice.toFixed(2)),
 
         images,
 
@@ -3682,6 +3705,7 @@ app.get("/products", async (req, res) => {
           productName: 1,
           images: 1,
           price: 1,
+          cashPrice: 1,
           discountedPrice: 1,
           discount: 1,
           category: 1,
@@ -4221,7 +4245,7 @@ app.patch(
         specifications,
         quantity,
         price,
-        discount,
+        cashPrice,
         unit,
         hasSizes,
         sizes,
@@ -4242,6 +4266,9 @@ app.patch(
         "Monitor",
         "Accessories",
         "Gaming",
+        "Display",
+        "Office Equipment",
+        "Gadgets",
       ];
 
       // =====================================================
@@ -4295,22 +4322,20 @@ app.patch(
       }
 
       // =====================================================
-      // DISCOUNT VALIDATION
+      // CASH PRICE VALIDATION
       // =====================================================
 
       if (
-        discount !== undefined &&
+        cashPrice !== undefined &&
         (
-          discount === "" ||
-          Number(discount) < 0 ||
-          Number(discount) > 100 ||
-          !Number.isFinite(Number(discount))
+          cashPrice === "" ||
+          Number(cashPrice) < 0 ||
+          !Number.isFinite(Number(cashPrice))
         )
       ) {
         return res.status(400).send({
           success: false,
-          message:
-            "Discount must be between 0 and 100",
+          message: "Invalid cash price",
         });
       }
 
@@ -4323,10 +4348,21 @@ app.patch(
           ? Number(price)
           : Number(existingProduct.price) || 0;
 
-      const finalDiscount =
-        discount !== undefined
-          ? Number(discount)
-          : Number(existingProduct.discount) || 0;
+      const finalCashPrice =
+        cashPrice !== undefined
+          ? Number(cashPrice)
+          : Number(
+              existingProduct.cashPrice ??
+                existingProduct.discountedPrice ??
+                existingProduct.price
+            ) || 0;
+
+      if (finalCashPrice > finalPrice) {
+        return res.status(400).send({
+          success: false,
+          message: "Cash price cannot be higher than regular price",
+        });
+      }
 
       const finalQuantity =
         quantity !== undefined
@@ -4358,12 +4394,15 @@ app.patch(
       }
 
       // =====================================================
-      // DISCOUNTED PRICE
+      // CASH PRICE
       // =====================================================
 
-      const discountedPrice =
-        finalPrice -
-        (finalPrice * finalDiscount) / 100;
+      const finalDiscount =
+        finalPrice > 0
+          ? Number(
+              (((finalPrice - finalCashPrice) / finalPrice) * 100).toFixed(2)
+            )
+          : 0;
 
       // =====================================================
       // KEY FEATURES
@@ -4614,11 +4653,11 @@ app.patch(
 
         currencySymbol: "৳",
 
+        cashPrice: Number(finalCashPrice.toFixed(2)),
+
         discount: finalDiscount,
 
-        discountedPrice: Number(
-          discountedPrice.toFixed(2)
-        ),
+        discountedPrice: Number(finalCashPrice.toFixed(2)),
 
         images: images,
       };
@@ -4852,6 +4891,7 @@ app.patch(
               productName: product.productName,
               images: product.images || [],
               price: product.price,
+              cashPrice: product.cashPrice,
               discount: product.discount,
               discountedPrice: product.discountedPrice,
               category: product.category,
@@ -4980,6 +5020,7 @@ app.patch(
       productName: product.productName,
       images: product.images || [],
       price: product.price,
+      cashPrice: product.cashPrice,
       discount: product.discount,
       discountedPrice: product.discountedPrice,
       category: product.category,
@@ -5687,22 +5728,12 @@ app.post("/orders", verifyToken, async (req, res) => {
       // PRICE
       // -------------------------------------------------------
 
-      const regularPrice = Number(product.price || 0);
-
-      const discount = Number(product.discount || 0);
-
-      const discountedPrice = Number(
-        product.discountedPrice || 0
+      const unitPrice = Number(
+        product.cashPrice ??
+          product.discountedPrice ??
+          product.price ??
+          0
       );
-
-      let unitPrice = regularPrice;
-
-      if (
-        discount > 0 &&
-        discountedPrice > 0
-      ) {
-        unitPrice = discountedPrice;
-      }
 
       const itemTotal = unitPrice * quantity;
 
