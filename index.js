@@ -5432,7 +5432,7 @@ app.patch(
     // CREATE ORDER
     // =====================================================
 
-app.post("/orders", verifyToken, async (req, res) => {
+app.post("/orders", verifyToken, upload.single("paymentProof"), async (req, res) => {
   try {
     const userId = req.user.userId;
 
@@ -5443,6 +5443,10 @@ app.post("/orders", verifyToken, async (req, res) => {
       });
     }
 
+    const orderPayload = req.body.orderData
+      ? JSON.parse(req.body.orderData)
+      : req.body;
+
     const {
       source = "cart",
       paymentMethod,
@@ -5451,15 +5455,17 @@ app.post("/orders", verifyToken, async (req, res) => {
       district: submittedDistrict = "",
       deliveryArea: submittedDeliveryArea = "",
       payment = {},
-    } = req.body;
+    } = orderPayload;
 
     // =========================================================
     // PAYMENT METHOD VALIDATION
     // =========================================================
 
-    const allowedPaymentMethods = ["bkash", "rocket", "nagad"];
-
-    if (!allowedPaymentMethods.includes(paymentMethod)) {
+    if (
+      typeof paymentMethod !== "string" ||
+      !paymentMethod.trim() ||
+      paymentMethod.trim().length > 60
+    ) {
       return res.status(400).send({
         success: false,
         message: "Invalid payment method",
@@ -5474,6 +5480,24 @@ app.post("/orders", verifyToken, async (req, res) => {
       return res.status(400).send({
         success: false,
         message: "Transaction ID is required",
+      });
+    }
+
+    if (
+      !payment.paymentDetails ||
+      typeof payment.paymentDetails !== "string" ||
+      !payment.paymentDetails.trim()
+    ) {
+      return res.status(400).send({
+        success: false,
+        message: "Payment account or number is required",
+      });
+    }
+
+    if (!req.file) {
+      return res.status(400).send({
+        success: false,
+        message: "Payment screenshot is required",
       });
     }
 
@@ -5804,12 +5828,18 @@ app.post("/orders", verifyToken, async (req, res) => {
     // MOBILE BANKING PAYMENT
     // =========================================================
 
+    const paymentProofUrl = await uploadToCloudinary(
+      req.file.path,
+      "kolystore/payment-proofs"
+    );
+
     const paymentData = {
       method: paymentMethod,
       status: "pending",
       transactionId: payment.transactionId.trim(),
-      senderName: "",
-      proof: "",
+      paymentDetails: payment.paymentDetails.trim().slice(0, 100),
+      senderName: payment.paymentDetails.trim().slice(0, 100),
+      proof: paymentProofUrl,
       verifiedBy: "",
       verifiedAt: null,
       paidAt: null,
