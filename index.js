@@ -8596,7 +8596,7 @@ if (require.main === module) {
         port,
         () => {
           console.log(
-            `Koly_Store is running on ports ${port}`
+            `Koly_Store is running on port ${port}`
           );
         }
       );
